@@ -386,6 +386,17 @@
                     <p>Este app precisa de acesso à sua localização para funcionar. Por favor, permita o acesso quando solicitado.</p>
                 </div>
 
+                <div id="mixed-content-warning" class="permission-warning" style="display:none;background:rgba(255, 193, 7, 0.15);border-color:rgba(255, 193, 7, 0.3);color:#ffc107;">
+                    <strong>⚠️ Problema de Mixed Content Detectado</strong>
+                    <p>Esta página está em HTTPS (GitHub Pages), mas a API está em HTTP. Navegadores bloqueiam requisições HTTP de páginas HTTPS por segurança.</p>
+                    <p style="margin-top:0.5rem;"><strong>Soluções:</strong></p>
+                    <ul style="margin-left:1.5rem;margin-top:0.5rem;font-size:0.9rem;">
+                        <li>Use HTTPS na API (recomendado)</li>
+                        <li>Ou sirva esta página via HTTP (não GitHub Pages)</li>
+                        <li>Ou use um proxy CORS HTTPS</li>
+                    </ul>
+                </div>
+
                 <div class="card status-card">
                     <div class="status-indicator" id="status-indicator">
                         <span class="status-dot"></span>
@@ -468,6 +479,7 @@
             const apiUrlExibido = document.getElementById('api-url-exibido');
             const btnAlterarCodigo = document.getElementById('btn-alterar-codigo');
             const permissionWarning = document.getElementById('permission-warning');
+            const mixedContentWarning = document.getElementById('mixed-content-warning');
             const apiUrlEl = document.getElementById('api-url');
             const debugCodigoEl = document.getElementById('debug-codigo');
             const debugGpsEl = document.getElementById('debug-gps');
@@ -475,6 +487,26 @@
             function getApiUrl() {
                 const url = localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
                 return url.trim().replace(/\/$/, '');
+            }
+
+            function verificarMixedContent() {
+                // Verificar se a página está em HTTPS e a API em HTTP
+                const isPageHttps = window.location.protocol === 'https:';
+                const apiUrl = getApiUrl();
+                const isApiHttp = apiUrl && apiUrl.startsWith('http://');
+                
+                if (isPageHttps && isApiHttp) {
+                    console.warn('⚠️ Mixed Content detectado: Página HTTPS tentando acessar API HTTP');
+                    if (mixedContentWarning) {
+                        mixedContentWarning.style.display = 'block';
+                    }
+                    return true;
+                } else {
+                    if (mixedContentWarning) {
+                        mixedContentWarning.style.display = 'none';
+                    }
+                    return false;
+                }
             }
 
             function hasCodigo() {
@@ -552,8 +584,19 @@
                     console.error('❌ Erro ao enviar localização:', err.message || err);
                     let errorMsg = '⚠️ Erro de conexão';
                     
+                    // Verificar Mixed Content
+                    const isPageHttps = window.location.protocol === 'https:';
+                    const isApiHttp = apiUrl.startsWith('http://');
+                    
                     if (err.message && err.message.includes('Failed to fetch')) {
-                        errorMsg = '❌ Não foi possível conectar à API. Verifique a URL e se a API está online.';
+                        if (isPageHttps && isApiHttp) {
+                            errorMsg = '❌ Mixed Content bloqueado! Página HTTPS não pode acessar API HTTP. Configure HTTPS na API.';
+                            if (mixedContentWarning) {
+                                mixedContentWarning.style.display = 'block';
+                            }
+                        } else {
+                            errorMsg = '❌ Não foi possível conectar à API. Verifique a URL e se a API está online.';
+                        }
                     } else if (err.message && err.message.includes('CORS')) {
                         errorMsg = '❌ Erro de CORS. A API pode não estar permitindo requisições.';
                     } else if (err.message && err.message.includes('NetworkError')) {
@@ -763,6 +806,15 @@
                     return;
                 }
                 
+                // Verificar Mixed Content antes de testar
+                const isPageHttps = window.location.protocol === 'https:';
+                const isApiHttp = apiUrl.startsWith('http://');
+                
+                if (isPageHttps && isApiHttp) {
+                    mostrarResultadoTeste('❌ Mixed Content: Página HTTPS não pode acessar API HTTP. Use HTTPS na API ou sirva a página via HTTP.', 'error');
+                    return;
+                }
+                
                 const url = apiUrl.replace(/\/$/, '') + '/api/ping';
                 mostrarResultadoTeste('🔄 Testando conexão...', 'testing');
                 
@@ -786,7 +838,11 @@
                     console.error('❌ Erro ao testar API:', err);
                     let msg = '❌ Erro de conexão: ';
                     if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-                        msg += 'Não foi possível conectar. Verifique se a URL está correta e se a API está online.';
+                        if (isPageHttps && isApiHttp) {
+                            msg = '❌ Mixed Content bloqueado! Página HTTPS não pode acessar API HTTP.';
+                        } else {
+                            msg += 'Não foi possível conectar. Verifique se a URL está correta e se a API está online.';
+                        }
                     } else if (err.message.includes('CORS')) {
                         msg += 'Erro de CORS. A API pode não estar permitindo requisições deste domínio.';
                     } else {
@@ -824,6 +880,16 @@
                     return;
                 }
                 
+                // Verificar Mixed Content antes de salvar
+                const isPageHttps = window.location.protocol === 'https:';
+                const isApiHttp = apiUrl.startsWith('http://');
+                
+                if (isPageHttps && isApiHttp) {
+                    if (!confirm('⚠️ ATENÇÃO: Esta página está em HTTPS, mas a API está em HTTP.\n\nNavegadores bloqueiam requisições HTTP de páginas HTTPS (Mixed Content).\n\nDeseja continuar mesmo assim? (Recomendado: usar HTTPS na API)')) {
+                        return;
+                    }
+                }
+                
                 console.log('💾 Salvando configurações:', { codigo, apiUrl });
                 localStorage.setItem(DEVICE_CODE_KEY, codigo);
                 localStorage.setItem(API_URL_KEY, apiUrl);
@@ -835,6 +901,9 @@
                 if (apiUrlExibido) apiUrlExibido.textContent = apiUrl;
                 if (btnSalvarConfig) btnSalvarConfig.style.display = 'none';
                 if (inputCodigo) inputCodigo.disabled = true;
+                
+                // Verificar Mixed Content novamente após salvar
+                verificarMixedContent();
                 
                 // Atualizar debug visual
                 if (debugCodigoEl) {
@@ -989,6 +1058,10 @@
                 console.log('🚀 Inicializando Rastreador Web...');
                 console.log('📱 Navegador:', navigator.userAgent);
                 console.log('🌐 Geolocalização disponível:', !!navigator.geolocation);
+                console.log('🔒 Protocolo da página:', window.location.protocol);
+                
+                // Verificar Mixed Content
+                verificarMixedContent();
                 
                 // Atualizar debug visual
                 if (debugCodigoEl) {
