@@ -412,6 +412,14 @@
                         <span class="info-label">API URL</span>
                         <span id="api-url" style="font-size:0.8rem;color:var(--text-muted);">—</span>
                     </div>
+                    <div class="info-row">
+                        <span class="info-label">Código</span>
+                        <span id="debug-codigo" style="font-size:0.8rem;color:var(--text-muted);">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Status GPS</span>
+                        <span id="debug-gps" style="font-size:0.8rem;color:var(--text-muted);">—</span>
+                    </div>
                 </div>
             </main>
         </div>
@@ -449,6 +457,8 @@
             const btnAlterarCodigo = document.getElementById('btn-alterar-codigo');
             const permissionWarning = document.getElementById('permission-warning');
             const apiUrlEl = document.getElementById('api-url');
+            const debugCodigoEl = document.getElementById('debug-codigo');
+            const debugGpsEl = document.getElementById('debug-gps');
 
             function getApiUrl() {
                 const url = localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
@@ -472,9 +482,17 @@
 
             function sendLocation(lat, lng, bateria) {
                 const deviceId = getDeviceId();
-                if (!deviceId) return;
+                if (!deviceId) {
+                    console.error('❌ sendLocation: deviceId não encontrado');
+                    if (statusDesc) statusDesc.textContent = 'Erro: Código do dispositivo não configurado';
+                    return;
+                }
                 const apiUrl = getApiUrl();
-                if (!apiUrl) return;
+                if (!apiUrl) {
+                    console.error('❌ sendLocation: API URL não configurada');
+                    if (statusDesc) statusDesc.textContent = 'Erro: URL da API não configurada';
+                    return;
+                }
                 const url = apiUrl + '/api/localizacao';
                 const body = {
                     device_id: deviceId,
@@ -486,13 +504,17 @@
                     body.bateria = Math.round(bateria);
                 }
 
+                console.log('📤 Enviando localização:', { deviceId, lat, lng, url });
+
                 fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body),
-                    mode: 'cors'
+                    mode: 'cors',
+                    cache: 'no-cache'
                 })
                 .then(function (res) {
+                    console.log('📥 Resposta da API:', res.status, res.statusText);
                     if (res.ok) {
                         countSent++;
                         if (countSentEl) countSentEl.textContent = countSent;
@@ -500,21 +522,25 @@
                         if (statusDesc) {
                             const autoStartEnabled = localStorage.getItem('auto_start_enabled') === 'true';
                             if (autoStartEnabled) {
-                                statusDesc.textContent = 'Rastreamento ativo. Enviando localização...';
+                                statusDesc.textContent = '✅ Rastreamento ativo. Enviando localização...';
                             } else {
-                                statusDesc.textContent = 'Enviando localização a cada 3 segundos...';
+                                statusDesc.textContent = '✅ Enviando localização a cada 3 segundos...';
                             }
                         }
                         permissionWarning.style.display = 'none';
+                        console.log('✅ Localização enviada com sucesso! Total:', countSent);
                     } else {
-                        // Não mudar mensagem a cada erro - apenas logar
-                        console.warn('API retornou erro:', res.status);
+                        console.error('❌ API retornou erro:', res.status, res.statusText);
+                        if (statusDesc) {
+                            statusDesc.textContent = '⚠️ Erro ao enviar (status ' + res.status + '). Tentando novamente...';
+                        }
                     }
                 })
                 .catch(function (err) {
-                    // Não mudar mensagem a cada erro - apenas logar
-                    // O rastreamento continua tentando
-                    console.warn('Erro ao enviar localização (continuando):', err);
+                    console.error('❌ Erro ao enviar localização:', err.message || err);
+                    if (statusDesc) {
+                        statusDesc.textContent = '⚠️ Erro de conexão. Verifique a URL da API. Tentando novamente...';
+                    }
                 });
             }
 
@@ -535,11 +561,17 @@
 
             function onPosition(pos) {
                 const now = Date.now();
-                if (now - lastSentTime < INTERVAL_MS) return;
+                if (now - lastSentTime < INTERVAL_MS) {
+                    console.log('⏭️ Pulando envio (muito recente)');
+                    return;
+                }
                 lastSentTime = now;
 
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
+                const accuracy = pos.coords.accuracy;
+
+                console.log('📍 Localização obtida:', { lat, lng, accuracy: accuracy + 'm' });
 
                 getBatteryLevel().then(function(bateria) {
                     sendLocation(lat, lng, bateria);
@@ -573,8 +605,12 @@
             }
 
             function startTracking() {
-                if (locationInterval != null) return;
+                if (locationInterval != null) {
+                    console.log('⚠️ Rastreamento já está ativo');
+                    return;
+                }
                 if (!canStart()) {
+                    console.warn('⚠️ Não pode iniciar: código não configurado');
                     statusDesc.textContent = 'Configure o código do rastreador em ⚙️ para começar.';
                     configOverlay.classList.add('ativo');
                     restaurarEstadoConfig();
@@ -582,17 +618,25 @@
                 }
 
                 if (!navigator.geolocation) {
+                    console.error('❌ Geolocalização não suportada');
                     statusDesc.textContent = 'Geolocalização não suportada neste navegador.';
                     return;
                 }
+
+                console.log('🚀 Iniciando rastreamento...');
+                console.log('📋 Configuração:', {
+                    deviceId: getDeviceId(),
+                    apiUrl: getApiUrl(),
+                    interval: INTERVAL_MS + 'ms'
+                });
 
                 statusText.textContent = 'Ativo';
                 statusIndicator.classList.add('active');
                 const autoStartEnabled = localStorage.getItem('auto_start_enabled') === 'true';
                 if (autoStartEnabled) {
-                    statusDesc.textContent = 'Rastreamento automático ativo. Enviando localização a cada 3 segundos...';
+                    statusDesc.textContent = '🔄 Rastreamento automático ativo. Obtendo localização...';
                 } else {
-                    statusDesc.textContent = 'Enviando localização a cada 3 segundos...';
+                    statusDesc.textContent = '🔄 Obtendo localização...';
                 }
                 if (btnStart) {
                     btnStart.disabled = true;
@@ -616,14 +660,17 @@
                         maximumAge: 60000 // Aceitar localização até 1 minuto antiga
                     }
                 );
+                console.log('👀 watchPosition configurado, watchId:', watchId);
 
                 // Backup: intervalo para garantir envio mesmo se watchPosition falhar
                 // Este é o método principal - continua tentando mesmo com erros
                 locationInterval = setInterval(function() {
                     if (locationInterval != null) { // Verificar se ainda está ativo
+                        console.log('⏰ Intervalo: tentando obter localização...');
                         enviarLocalizacaoAgora();
                     }
                 }, INTERVAL_MS);
+                console.log('⏰ Intervalo configurado a cada', INTERVAL_MS, 'ms');
             }
 
             function stopTracking() {
@@ -687,6 +734,7 @@
                     statusDesc.textContent = 'Informe o código do rastreador.';
                     return;
                 }
+                console.log('💾 Salvando código:', codigo);
                 localStorage.setItem(DEVICE_CODE_KEY, codigo);
                 // Salvar flag de auto-start
                 localStorage.setItem('auto_start_enabled', 'true');
@@ -695,6 +743,13 @@
                 if (codigoExibido) codigoExibido.textContent = codigo;
                 if (btnSalvarConfig) btnSalvarConfig.style.display = 'none';
                 if (inputCodigo) inputCodigo.disabled = true;
+                
+                // Atualizar debug visual
+                if (debugCodigoEl) {
+                    debugCodigoEl.textContent = codigo;
+                    debugCodigoEl.style.color = 'var(--accent)';
+                }
+                
                 fecharConfig();
                 atualizarEstadoInicial();
                 statusDesc.textContent = 'Código salvo! Iniciando rastreamento automaticamente...';
@@ -746,12 +801,22 @@
             }
 
             function enviarLocalizacaoAgora() {
-                if (!canStart()) return;
-                if (!navigator.geolocation) return;
+                if (!canStart()) {
+                    console.warn('⚠️ enviarLocalizacaoAgora: Código não configurado');
+                    return;
+                }
+                if (!navigator.geolocation) {
+                    console.error('❌ Geolocalização não suportada');
+                    if (statusDesc) statusDesc.textContent = '❌ Geolocalização não suportada neste navegador';
+                    return;
+                }
+                
+                console.log('🔄 Tentando obter localização...');
                 
                 // Tentar obter localização com timeout maior e aceitar localização mais antiga
                 navigator.geolocation.getCurrentPosition(
                     function (pos) {
+                        console.log('✅ Localização obtida com sucesso');
                         const lat = pos.coords.latitude;
                         const lng = pos.coords.longitude;
                         getBatteryLevel().then(function(bateria) {
@@ -761,9 +826,12 @@
                         });
                     },
                     function (err) {
-                        // Não chamar onError aqui para não mostrar mensagem a cada tentativa
-                        // Apenas logar silenciosamente - o intervalo continuará tentando
-                        console.warn('Erro ao obter localização (tentativa):', err.code);
+                        // Logar o erro com mais detalhes
+                        let errorMsg = 'Erro desconhecido';
+                        if (err.code === 1) errorMsg = 'Permissão negada';
+                        else if (err.code === 2) errorMsg = 'GPS indisponível';
+                        else if (err.code === 3) errorMsg = 'Timeout';
+                        console.warn('⚠️ Erro ao obter localização:', errorMsg, err.code);
                         // Continuar tentando - não parar o rastreamento
                     },
                     { 
@@ -814,15 +882,38 @@
 
             // Inicialização
             document.addEventListener('DOMContentLoaded', function () {
-                requestPermission();
-                restaurarEstadoConfig();
-                atualizarEstadoInicial();
+                console.log('🚀 Inicializando Rastreador Web...');
+                console.log('📱 Navegador:', navigator.userAgent);
+                console.log('🌐 Geolocalização disponível:', !!navigator.geolocation);
+                
+                // Atualizar debug visual
+                if (debugCodigoEl) {
+                    const codigo = getDeviceId();
+                    debugCodigoEl.textContent = codigo || 'Não configurado';
+                    debugCodigoEl.style.color = codigo ? 'var(--accent)' : 'var(--danger)';
+                }
+                
+                if (debugGpsEl) {
+                    if (navigator.geolocation) {
+                        debugGpsEl.textContent = 'Disponível';
+                        debugGpsEl.style.color = 'var(--accent)';
+                    } else {
+                        debugGpsEl.textContent = 'Não suportado';
+                        debugGpsEl.style.color = 'var(--danger)';
+                    }
+                }
                 
                 // Exibir URL da API
                 const apiUrl = getApiUrl();
                 if (apiUrlEl) {
                     apiUrlEl.textContent = apiUrl;
                 }
+                
+                requestPermission();
+                restaurarEstadoConfig();
+                atualizarEstadoInicial();
+                
+                console.log('✅ Inicialização concluída');
             });
 
             // Detectar quando a página volta ao foco (simular appStateChange)
