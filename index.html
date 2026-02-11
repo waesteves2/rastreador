@@ -354,17 +354,25 @@
 
             <div class="config-overlay" id="config-overlay">
                 <div class="config-card">
-                    <h3>Código do rastreador</h3>
-                    <p class="config-desc" id="config-desc">Informe o código do seu rastreador.</p>
+                    <h3>Configurações</h3>
+                    <p class="config-desc" id="config-desc">Configure o código do rastreador e a URL da API.</p>
                     <div class="config-form" id="codigo-form">
                         <label>Código do rastreador</label>
                         <input type="text" id="input-codigo" placeholder="Ex: R53488" autocomplete="off">
+                        <label style="margin-top:1rem;">URL da API</label>
+                        <input type="text" id="input-api-url" placeholder="http://76.13.238.208:10000" autocomplete="off">
                         <button class="btn btn-save" id="btn-salvar-config" type="button">Salvar</button>
+                        <button class="btn" id="btn-testar-api" type="button" style="background:rgba(0,212,170,0.2);color:var(--accent);border:1px solid var(--accent);margin-top:0.5rem;">Testar Conexão</button>
+                        <div id="api-test-result" style="margin-top:0.5rem;padding:0.5rem;border-radius:8px;display:none;"></div>
                     </div>
                     <div id="codigo-salvo" class="codigo-salvo" style="display:none;">
                         <span class="codigo-badge">✓ Código salvo</span>
                         <span id="codigo-exibido" class="codigo-exibido"></span>
-                        <button class="btn-link" id="btn-alterar-codigo" type="button">Alterar código</button>
+                        <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+                            <label style="display:block;font-size:0.9rem;margin-bottom:0.35rem;color:var(--text-muted);">URL da API</label>
+                            <span id="api-url-exibido" style="font-size:0.9rem;color:var(--text);word-break:break-all;"></span>
+                        </div>
+                        <button class="btn-link" id="btn-alterar-codigo" type="button" style="margin-top:0.75rem;">Alterar configurações</button>
                     </div>
                     <div class="config-buttons" style="margin-top:1rem;">
                         <button class="btn btn-cancel" id="btn-fechar-config" type="button">Fechar</button>
@@ -449,11 +457,15 @@
             const configOverlay = document.getElementById('config-overlay');
             const btnConfig = document.getElementById('btn-config');
             const inputCodigo = document.getElementById('input-codigo');
+            const inputApiUrl = document.getElementById('input-api-url');
             const btnSalvarConfig = document.getElementById('btn-salvar-config');
+            const btnTestarApi = document.getElementById('btn-testar-api');
+            const apiTestResult = document.getElementById('api-test-result');
             const btnFecharConfig = document.getElementById('btn-fechar-config');
             const codigoForm = document.getElementById('codigo-form');
             const codigoSalvo = document.getElementById('codigo-salvo');
             const codigoExibido = document.getElementById('codigo-exibido');
+            const apiUrlExibido = document.getElementById('api-url-exibido');
             const btnAlterarCodigo = document.getElementById('btn-alterar-codigo');
             const permissionWarning = document.getElementById('permission-warning');
             const apiUrlEl = document.getElementById('api-url');
@@ -538,8 +550,20 @@
                 })
                 .catch(function (err) {
                     console.error('❌ Erro ao enviar localização:', err.message || err);
+                    let errorMsg = '⚠️ Erro de conexão';
+                    
+                    if (err.message && err.message.includes('Failed to fetch')) {
+                        errorMsg = '❌ Não foi possível conectar à API. Verifique a URL e se a API está online.';
+                    } else if (err.message && err.message.includes('CORS')) {
+                        errorMsg = '❌ Erro de CORS. A API pode não estar permitindo requisições.';
+                    } else if (err.message && err.message.includes('NetworkError')) {
+                        errorMsg = '❌ Erro de rede. Verifique sua conexão com a internet.';
+                    } else {
+                        errorMsg = '⚠️ Erro ao enviar. Tentando novamente...';
+                    }
+                    
                     if (statusDesc) {
-                        statusDesc.textContent = '⚠️ Erro de conexão. Verifique a URL da API. Tentando novamente...';
+                        statusDesc.textContent = errorMsg;
                     }
                 });
             }
@@ -706,16 +730,20 @@
 
             function restaurarEstadoConfig() {
                 const code = localStorage.getItem(DEVICE_CODE_KEY);
+                const apiUrl = localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
+                
                 if (code && code.trim()) {
                     if (codigoForm) codigoForm.style.display = 'none';
                     if (codigoSalvo) codigoSalvo.style.display = 'block';
                     if (codigoExibido) codigoExibido.textContent = code.trim();
+                    if (apiUrlExibido) apiUrlExibido.textContent = apiUrl;
                     if (btnSalvarConfig) btnSalvarConfig.style.display = 'none';
                 } else {
                     if (codigoForm) codigoForm.style.display = 'block';
                     if (codigoSalvo) codigoSalvo.style.display = 'none';
                     if (btnSalvarConfig) btnSalvarConfig.style.display = 'block';
                     if (inputCodigo) inputCodigo.value = '';
+                    if (inputApiUrl) inputApiUrl.value = apiUrl;
                 }
             }
 
@@ -728,19 +756,83 @@
                 configOverlay.classList.remove('ativo');
             }
 
+            function testarConexaoAPI() {
+                const apiUrl = inputApiUrl ? inputApiUrl.value.trim() : getApiUrl();
+                if (!apiUrl) {
+                    mostrarResultadoTeste('⚠️ Informe a URL da API', 'error');
+                    return;
+                }
+                
+                const url = apiUrl.replace(/\/$/, '') + '/api/ping';
+                mostrarResultadoTeste('🔄 Testando conexão...', 'testing');
+                
+                fetch(url, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-cache'
+                })
+                .then(function(res) {
+                    if (res.ok) {
+                        return res.json();
+                    } else {
+                        throw new Error('Status: ' + res.status);
+                    }
+                })
+                .then(function(data) {
+                    console.log('✅ API respondeu:', data);
+                    mostrarResultadoTeste('✅ Conexão OK! API está respondendo.', 'success');
+                })
+                .catch(function(err) {
+                    console.error('❌ Erro ao testar API:', err);
+                    let msg = '❌ Erro de conexão: ';
+                    if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+                        msg += 'Não foi possível conectar. Verifique se a URL está correta e se a API está online.';
+                    } else if (err.message.includes('CORS')) {
+                        msg += 'Erro de CORS. A API pode não estar permitindo requisições deste domínio.';
+                    } else {
+                        msg += err.message;
+                    }
+                    mostrarResultadoTeste(msg, 'error');
+                });
+            }
+            
+            function mostrarResultadoTeste(mensagem, tipo) {
+                if (!apiTestResult) return;
+                apiTestResult.style.display = 'block';
+                apiTestResult.textContent = mensagem;
+                apiTestResult.style.background = tipo === 'success' ? 'rgba(0, 212, 170, 0.15)' : 
+                                                 tipo === 'error' ? 'rgba(255, 71, 87, 0.15)' : 
+                                                 'rgba(139, 149, 165, 0.15)';
+                apiTestResult.style.color = tipo === 'success' ? 'var(--accent)' : 
+                                            tipo === 'error' ? 'var(--danger)' : 
+                                            'var(--text-muted)';
+                apiTestResult.style.border = '1px solid ' + (tipo === 'success' ? 'var(--accent)' : 
+                                                                 tipo === 'error' ? 'var(--danger)' : 
+                                                                 'var(--border)');
+            }
+
             function salvarCodigo() {
                 const codigo = inputCodigo ? inputCodigo.value.trim() : '';
                 if (!codigo) {
                     statusDesc.textContent = 'Informe o código do rastreador.';
                     return;
                 }
-                console.log('💾 Salvando código:', codigo);
+                
+                const apiUrl = inputApiUrl ? inputApiUrl.value.trim() : DEFAULT_API_URL;
+                if (!apiUrl) {
+                    statusDesc.textContent = 'Informe a URL da API.';
+                    return;
+                }
+                
+                console.log('💾 Salvando configurações:', { codigo, apiUrl });
                 localStorage.setItem(DEVICE_CODE_KEY, codigo);
+                localStorage.setItem(API_URL_KEY, apiUrl);
                 // Salvar flag de auto-start
                 localStorage.setItem('auto_start_enabled', 'true');
                 if (codigoForm) codigoForm.style.display = 'none';
                 if (codigoSalvo) codigoSalvo.style.display = 'block';
                 if (codigoExibido) codigoExibido.textContent = codigo;
+                if (apiUrlExibido) apiUrlExibido.textContent = apiUrl;
                 if (btnSalvarConfig) btnSalvarConfig.style.display = 'none';
                 if (inputCodigo) inputCodigo.disabled = true;
                 
@@ -749,10 +841,13 @@
                     debugCodigoEl.textContent = codigo;
                     debugCodigoEl.style.color = 'var(--accent)';
                 }
+                if (apiUrlEl) {
+                    apiUrlEl.textContent = apiUrl;
+                }
                 
                 fecharConfig();
                 atualizarEstadoInicial();
-                statusDesc.textContent = 'Código salvo! Iniciando rastreamento automaticamente...';
+                statusDesc.textContent = 'Configurações salvas! Iniciando rastreamento automaticamente...';
                 // Iniciar automaticamente após salvar o código
                 setTimeout(function() {
                     requestPermission();
@@ -853,6 +948,9 @@
 
             btnConfig.addEventListener('click', abrirConfig);
             btnSalvarConfig.addEventListener('click', salvarCodigo);
+            if (btnTestarApi) {
+                btnTestarApi.addEventListener('click', testarConexaoAPI);
+            }
             btnFecharConfig.addEventListener('click', fecharConfig);
             
             if (btnAlterarCodigo) {
@@ -866,6 +964,12 @@
                     if (inputCodigo) {
                         inputCodigo.value = '';
                         inputCodigo.disabled = false;
+                    }
+                    if (inputApiUrl) {
+                        inputApiUrl.value = getApiUrl();
+                    }
+                    if (apiTestResult) {
+                        apiTestResult.style.display = 'none';
                     }
                     if (codigoForm) codigoForm.style.display = 'block';
                     if (codigoSalvo) codigoSalvo.style.display = 'none';
