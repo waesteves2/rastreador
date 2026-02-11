@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0e17">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Rastreador Web 1.1</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #0a0e17;
+            --bg-card: #12182a;
+            --accent: #00d4aa;
+            --accent-hover: #00f0c0;
+            --accent-dim: #00a88a;
+            --danger: #ff4757;
+            --danger-hover: #ff6b7a;
+            --text: #e8eaed;
+            --text-muted: #8b95a5;
+            --border: #1e2a3d;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #app {
+            max-width: 420px;
+            margin: 0 auto;
+            min-height: 100vh;
+            padding: 0;
+        }
+
+        .screen {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+        }
+
+        .header {
+            padding: 1rem 0;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .btn-config {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.5rem;
+            font-size: 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text);
+        }
+
+        .btn-config:active {
+            transform: scale(0.95);
+        }
+
+        .config-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .config-overlay.ativo {
+            display: flex;
+        }
+
+        .config-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            max-width: 320px;
+            width: 100%;
+        }
+
+        .config-card h3 {
+            margin-bottom: 0.5rem;
+        }
+
+        .config-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .config-form label {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 0.35rem;
+            color: var(--text-muted);
+        }
+
+        .config-form input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .config-form input::placeholder {
+            color: var(--text-muted);
+            opacity: 0.7;
+        }
+
+        .btn-link {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .btn-link:hover {
+            color: var(--accent);
+        }
+
+        .codigo-salvo {
+            padding: 0.75rem;
+            background: rgba(0, 212, 170, 0.15);
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+
+        .codigo-salvo .codigo-badge {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .codigo-exibido {
+            display: block;
+            margin-top: 0.25rem;
+            font-size: 1.1rem;
+            color: var(--text);
+        }
+
+        .config-buttons {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .config-buttons .btn {
+            flex: 1;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+            color: var(--bg);
+            border: none;
+        }
+
+        .btn-cancel {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            font-size: 2rem;
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .status-card {
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(139, 149, 165, 0.2);
+            border-radius: 50px;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+
+        .status-indicator.active {
+            background: rgba(0, 212, 170, 0.2);
+            border: 1px solid rgba(0, 212, 170, 0.4);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--text-muted);
+            border-radius: 50%;
+        }
+
+        .status-indicator.active .status-dot {
+            background: var(--accent);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-desc {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .action-area {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 1rem 1.5rem;
+            border: none;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+            color: var(--bg);
+        }
+
+        .btn-primary:not(:disabled):active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--danger);
+            border: 2px solid var(--danger);
+        }
+
+        .btn-secondary:not(:disabled):active {
+            transform: scale(0.98);
+        }
+
+        .btn-icon {
+            font-size: 1.1rem;
+        }
+
+        .info-card {
+            margin-top: auto;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .permission-warning {
+            background: rgba(255, 71, 87, 0.15);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: var(--danger);
+            font-size: 0.9rem;
+        }
+
+        .permission-warning strong {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="screen">
+            <header class="header">
+                <div class="logo">
+                    <span class="logo-icon">📍</span>
+                    <h1>Rastreador Web 1.1</h1>
+                </div>
+                <button class="btn-config" id="btn-config" type="button" title="Configurar">⚙️</button>
+            </header>
+
+            <div class="config-overlay" id="config-overlay">
+                <div class="config-card">
+                    <h3>Código do rastreador</h3>
+                    <p class="config-desc" id="config-desc">Informe o código do seu rastreador.</p>
+                    <div class="config-form" id="codigo-form">
+                        <label>Código do rastreador</label>
+                        <input type="text" id="input-codigo" placeholder="Ex: R53488" autocomplete="off">
+                        <button class="btn btn-save" id="btn-salvar-config" type="button">Salvar</button>
+                    </div>
+                    <div id="codigo-salvo" class="codigo-salvo" style="display:none;">
+                        <span class="codigo-badge">✓ Código salvo</span>
+                        <span id="codigo-exibido" class="codigo-exibido"></span>
+                        <button class="btn-link" id="btn-alterar-codigo" type="button">Alterar código</button>
+                    </div>
+                    <div class="config-buttons" style="margin-top:1rem;">
+                        <button class="btn btn-cancel" id="btn-fechar-config" type="button">Fechar</button>
+                    </div>
+                </div>
+            </div>
+
+            <main class="main">
+                <div id="permission-warning" class="permission-warning" style="display:none;">
+                    <strong>⚠️ Permissão de localização necessária</strong>
+                    <p>Este app precisa de acesso à sua localização para funcionar. Por favor, permita o acesso quando solicitado.</p>
+                </div>
+
+                <div class="card status-card">
+                    <div class="status-indicator" id="status-indicator">
+                        <span class="status-dot"></span>
+                        <span id="status-text">Parado</span>
+                    </div>
+                    <p class="status-desc" id="status-desc">
+                        Configure o código do rastreador em ⚙️ para começar.
+                    </p>
+                </div>
+
+                <div class="action-area">
+                    <button class="btn btn-primary" id="btn-start" type="button" disabled>
+                        <span class="btn-icon">▶</span>
+                        Iniciar
+                    </button>
+                    <button class="btn btn-secondary" id="btn-stop" type="button" disabled>
+                        <span class="btn-icon">⏹</span>
+                        Parar
+                    </button>
+                </div>
+
+                <div class="info-card">
+                    <div class="info-row">
+                        <span class="info-label">Última atualização</span>
+                        <span id="last-update">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Enviados</span>
+                        <span id="count-sent">0</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">API URL</span>
+                        <span id="api-url" style="font-size:0.8rem;color:var(--text-muted);">—</span>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            // Configuração
+            const INTERVAL_MS = 3000; // 3 segundos
+            const DEVICE_CODE_KEY = 'localizador_device_code';
+            const API_URL_KEY = 'localizador_api_url';
+            const DEFAULT_API_URL = 'http://76.13.238.208:10000';
+            
+            let watchId = null;
+            let countSent = 0;
+            let lastSentTime = 0;
+            let locationInterval = null;
+
+            // Elementos DOM
+            const btnStart = document.getElementById('btn-start');
+            const btnStop = document.getElementById('btn-stop');
+            const statusText = document.getElementById('status-text');
+            const statusDesc = document.getElementById('status-desc');
+            const lastUpdate = document.getElementById('last-update');
+            const countSentEl = document.getElementById('count-sent');
+            const statusIndicator = document.getElementById('status-indicator');
+            const configOverlay = document.getElementById('config-overlay');
+            const btnConfig = document.getElementById('btn-config');
+            const inputCodigo = document.getElementById('input-codigo');
+            const btnSalvarConfig = document.getElementById('btn-salvar-config');
+            const btnFecharConfig = document.getElementById('btn-fechar-config');
+            const codigoForm = document.getElementById('codigo-form');
+            const codigoSalvo = document.getElementById('codigo-salvo');
+            const codigoExibido = document.getElementById('codigo-exibido');
+            const btnAlterarCodigo = document.getElementById('btn-alterar-codigo');
+            const permissionWarning = document.getElementById('permission-warning');
+            const apiUrlEl = document.getElementById('api-url');
+
+            function getApiUrl() {
+                const url = localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
+                return url.trim().replace(/\/$/, '');
+            }
+
+            function hasCodigo() {
+                const code = localStorage.getItem(DEVICE_CODE_KEY);
+                return !!(code && code.trim());
+            }
+
+            function getDeviceId() {
+                const code = localStorage.getItem(DEVICE_CODE_KEY);
+                if (code && code.trim()) return code.trim();
+                return null;
+            }
+
+            function canStart() {
+                return hasCodigo();
+            }
+
+            function sendLocation(lat, lng, bateria) {
+                const deviceId = getDeviceId();
+                if (!deviceId) return;
+                const apiUrl = getApiUrl();
+                if (!apiUrl) return;
+                const url = apiUrl + '/api/localizacao';
+                const body = {
+                    device_id: deviceId,
+                    lat: lat,
+                    lng: lng,
+                    timestamp: Date.now() / 1000
+                };
+                if (bateria != null && bateria >= 0 && bateria <= 100) {
+                    body.bateria = Math.round(bateria);
+                }
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    mode: 'cors'
+                })
+                .then(function (res) {
+                    if (res.ok) {
+                        countSent++;
+                        if (countSentEl) countSentEl.textContent = countSent;
+                        if (lastUpdate) lastUpdate.textContent = new Date().toLocaleTimeString('pt-BR');
+                        if (statusDesc) {
+                            const autoStartEnabled = localStorage.getItem('auto_start_enabled') === 'true';
+                            if (autoStartEnabled) {
+                                statusDesc.textContent = 'Rastreamento ativo. Enviando localização...';
+                            } else {
+                                statusDesc.textContent = 'Enviando localização a cada 3 segundos...';
+                            }
+                        }
+                        permissionWarning.style.display = 'none';
+                    } else {
+                        // Não mudar mensagem a cada erro - apenas logar
+                        console.warn('API retornou erro:', res.status);
+                    }
+                })
+                .catch(function (err) {
+                    // Não mudar mensagem a cada erro - apenas logar
+                    // O rastreamento continua tentando
+                    console.warn('Erro ao enviar localização (continuando):', err);
+                });
+            }
+
+            function getBatteryLevel() {
+                // Tentar obter nível de bateria via Battery API (se disponível)
+                if (navigator.getBattery) {
+                    return navigator.getBattery().then(function(battery) {
+                        if (battery && battery.level >= 0) {
+                            return battery.level * 100;
+                        }
+                        return null;
+                    }).catch(function() {
+                        return null;
+                    });
+                }
+                return Promise.resolve(null);
+            }
+
+            function onPosition(pos) {
+                const now = Date.now();
+                if (now - lastSentTime < INTERVAL_MS) return;
+                lastSentTime = now;
+
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+
+                getBatteryLevel().then(function(bateria) {
+                    sendLocation(lat, lng, bateria);
+                }).catch(function() {
+                    sendLocation(lat, lng, null);
+                });
+            }
+
+            function onError(err) {
+                console.warn('Erro de geolocalização (continuando tentativas):', err);
+                // Não parar o rastreamento - apenas logar o erro
+                // O intervalo continuará tentando
+                if (err.code === 1) {
+                    // PERMISSION_DENIED - apenas avisar, mas continuar tentando
+                    permissionWarning.style.display = 'block';
+                    if (statusDesc) {
+                        statusDesc.textContent = 'Permissão negada. Continuando tentativas...';
+                    }
+                } else if (err.code === 2) {
+                    // POSITION_UNAVAILABLE - continuar tentando
+                    if (statusDesc) {
+                        statusDesc.textContent = 'GPS indisponível. Tentando novamente...';
+                    }
+                } else if (err.code === 3) {
+                    // TIMEOUT - continuar tentando (não parar!)
+                    if (statusDesc) {
+                        statusDesc.textContent = 'Timeout. Continuando tentativas...';
+                    }
+                }
+                // Não fazer nada que pare o rastreamento - o intervalo continuará rodando
+            }
+
+            function startTracking() {
+                if (locationInterval != null) return;
+                if (!canStart()) {
+                    statusDesc.textContent = 'Configure o código do rastreador em ⚙️ para começar.';
+                    configOverlay.classList.add('ativo');
+                    restaurarEstadoConfig();
+                    return;
+                }
+
+                if (!navigator.geolocation) {
+                    statusDesc.textContent = 'Geolocalização não suportada neste navegador.';
+                    return;
+                }
+
+                statusText.textContent = 'Ativo';
+                statusIndicator.classList.add('active');
+                const autoStartEnabled = localStorage.getItem('auto_start_enabled') === 'true';
+                if (autoStartEnabled) {
+                    statusDesc.textContent = 'Rastreamento automático ativo. Enviando localização a cada 3 segundos...';
+                } else {
+                    statusDesc.textContent = 'Enviando localização a cada 3 segundos...';
+                }
+                if (btnStart) {
+                    btnStart.disabled = true;
+                    btnStart.style.display = 'none';
+                }
+                if (btnStop) {
+                    btnStop.disabled = false;
+                    btnStop.style.display = 'block';
+                }
+
+                // Enviar localização imediatamente
+                enviarLocalizacaoAgora();
+
+                // Configurar watchPosition para atualizações contínuas
+                watchId = navigator.geolocation.watchPosition(
+                    onPosition,
+                    onError,
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 30000, // 30 segundos (aumentado)
+                        maximumAge: 60000 // Aceitar localização até 1 minuto antiga
+                    }
+                );
+
+                // Backup: intervalo para garantir envio mesmo se watchPosition falhar
+                // Este é o método principal - continua tentando mesmo com erros
+                locationInterval = setInterval(function() {
+                    if (locationInterval != null) { // Verificar se ainda está ativo
+                        enviarLocalizacaoAgora();
+                    }
+                }, INTERVAL_MS);
+            }
+
+            function stopTracking() {
+                if (watchId != null) {
+                    navigator.geolocation.clearWatch(watchId);
+                    watchId = null;
+                }
+                if (locationInterval != null) {
+                    clearInterval(locationInterval);
+                    locationInterval = null;
+                }
+                statusText.textContent = 'Parado';
+                statusIndicator.classList.remove('active');
+                statusDesc.textContent = 'Toque em Iniciar para enviar sua localização a cada 3 segundos';
+                btnStart.disabled = false;
+                btnStop.disabled = true;
+            }
+
+            function requestPermission() {
+                if (!navigator.geolocation) return;
+                navigator.geolocation.getCurrentPosition(
+                    function () {
+                        permissionWarning.style.display = 'none';
+                    },
+                    function (err) {
+                        if (err.code === 1) {
+                            permissionWarning.style.display = 'block';
+                        }
+                    },
+                    { enableHighAccuracy: true }
+                );
+            }
+
+            function restaurarEstadoConfig() {
+                const code = localStorage.getItem(DEVICE_CODE_KEY);
+                if (code && code.trim()) {
+                    if (codigoForm) codigoForm.style.display = 'none';
+                    if (codigoSalvo) codigoSalvo.style.display = 'block';
+                    if (codigoExibido) codigoExibido.textContent = code.trim();
+                    if (btnSalvarConfig) btnSalvarConfig.style.display = 'none';
+                } else {
+                    if (codigoForm) codigoForm.style.display = 'block';
+                    if (codigoSalvo) codigoSalvo.style.display = 'none';
+                    if (btnSalvarConfig) btnSalvarConfig.style.display = 'block';
+                    if (inputCodigo) inputCodigo.value = '';
+                }
+            }
+
+            function abrirConfig() {
+                restaurarEstadoConfig();
+                configOverlay.classList.add('ativo');
+            }
+
+            function fecharConfig() {
+                configOverlay.classList.remove('ativo');
+            }
+
+            function salvarCodigo() {
+                const codigo = inputCodigo ? inputCodigo.value.trim() : '';
+                if (!codigo) {
+                    statusDesc.textContent = 'Informe o código do rastreador.';
+                    return;
+                }
+                localStorage.setItem(DEVICE_CODE_KEY, codigo);
+                // Salvar flag de auto-start
+                localStorage.setItem('auto_start_enabled', 'true');
+                if (codigoForm) codigoForm.style.display = 'none';
+                if (codigoSalvo) codigoSalvo.style.display = 'block';
+                if (codigoExibido) codigoExibido.textContent = codigo;
+                if (btnSalvarConfig) btnSalvarConfig.style.display = 'none';
+                if (inputCodigo) inputCodigo.disabled = true;
+                fecharConfig();
+                atualizarEstadoInicial();
+                statusDesc.textContent = 'Código salvo! Iniciando rastreamento automaticamente...';
+                // Iniciar automaticamente após salvar o código
+                setTimeout(function() {
+                    requestPermission();
+                    enviarLocalizacaoAgora();
+                    startTracking();
+                }, 500);
+            }
+
+            function atualizarEstadoInicial() {
+                const autoStartEnabled = localStorage.getItem('auto_start_enabled') === 'true';
+                if (canStart()) {
+                    // Se auto-start está habilitado, esconder botões e iniciar automaticamente
+                    if (autoStartEnabled) {
+                        if (btnStart) btnStart.style.display = 'none';
+                        if (btnStop) btnStop.style.display = 'none';
+                        statusDesc.textContent = 'Rastreamento automático ativo. Enviando localização...';
+                        // Iniciar automaticamente
+                        setTimeout(function() {
+                            if (locationInterval == null) {
+                                requestPermission();
+                                enviarLocalizacaoAgora();
+                                startTracking();
+                            }
+                        }, 1000);
+                    } else {
+                        // Modo manual (primeira vez)
+                        if (btnStart) {
+                            btnStart.disabled = false;
+                            btnStart.style.display = 'block';
+                        }
+                        if (btnStop) {
+                            btnStop.style.display = 'block';
+                        }
+                        statusDesc.textContent = 'Toque em Iniciar para enviar sua localização a cada 3 segundos';
+                    }
+                } else {
+                    if (btnStart) {
+                        btnStart.disabled = true;
+                        btnStart.style.display = 'block';
+                    }
+                    if (btnStop) {
+                        btnStop.style.display = 'block';
+                    }
+                    statusDesc.textContent = 'Configure o código do rastreador em ⚙️ para começar.';
+                }
+            }
+
+            function enviarLocalizacaoAgora() {
+                if (!canStart()) return;
+                if (!navigator.geolocation) return;
+                
+                // Tentar obter localização com timeout maior e aceitar localização mais antiga
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        getBatteryLevel().then(function(bateria) {
+                            sendLocation(lat, lng, bateria);
+                        }).catch(function() {
+                            sendLocation(lat, lng, null);
+                        });
+                    },
+                    function (err) {
+                        // Não chamar onError aqui para não mostrar mensagem a cada tentativa
+                        // Apenas logar silenciosamente - o intervalo continuará tentando
+                        console.warn('Erro ao obter localização (tentativa):', err.code);
+                        // Continuar tentando - não parar o rastreamento
+                    },
+                    { 
+                        enableHighAccuracy: true, 
+                        timeout: 30000, // 30 segundos
+                        maximumAge: 60000 // Aceitar localização até 1 minuto antiga
+                    }
+                );
+            }
+
+            // Event listeners
+            btnStart.addEventListener('click', function () {
+                requestPermission();
+                enviarLocalizacaoAgora();
+                startTracking();
+            });
+
+            btnStop.addEventListener('click', stopTracking);
+
+            btnConfig.addEventListener('click', abrirConfig);
+            btnSalvarConfig.addEventListener('click', salvarCodigo);
+            btnFecharConfig.addEventListener('click', fecharConfig);
+            
+            if (btnAlterarCodigo) {
+                btnAlterarCodigo.addEventListener('click', function () {
+                    localStorage.removeItem(DEVICE_CODE_KEY);
+                    localStorage.removeItem('auto_start_enabled');
+                    // Parar rastreamento se estiver ativo
+                    if (locationInterval != null) {
+                        stopTracking();
+                    }
+                    if (inputCodigo) {
+                        inputCodigo.value = '';
+                        inputCodigo.disabled = false;
+                    }
+                    if (codigoForm) codigoForm.style.display = 'block';
+                    if (codigoSalvo) codigoSalvo.style.display = 'none';
+                    if (btnSalvarConfig) btnSalvarConfig.style.display = 'block';
+                    if (btnStart) btnStart.style.display = 'block';
+                    if (btnStop) btnStop.style.display = 'block';
+                    atualizarEstadoInicial();
+                });
+            }
+
+            configOverlay.addEventListener('click', function (e) {
+                if (e.target === configOverlay) fecharConfig();
+            });
+
+            // Inicialização
+            document.addEventListener('DOMContentLoaded', function () {
+                requestPermission();
+                restaurarEstadoConfig();
+                atualizarEstadoInicial();
+                
+                // Exibir URL da API
+                const apiUrl = getApiUrl();
+                if (apiUrlEl) {
+                    apiUrlEl.textContent = apiUrl;
+                }
+            });
+
+            // Detectar quando a página volta ao foco (simular appStateChange)
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) {
+                    const autoStartEnabled = localStorage.getItem('auto_start_enabled') === 'true';
+                    if (autoStartEnabled && canStart() && locationInterval == null) {
+                        // Reiniciar rastreamento automaticamente
+                        setTimeout(function() {
+                            requestPermission();
+                            enviarLocalizacaoAgora();
+                            startTracking();
+                        }, 500);
+                    }
+                    atualizarEstadoInicial();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
